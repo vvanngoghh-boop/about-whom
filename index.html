@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>The Long Walk: Dunia Mendengarkan</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000000; font-family: 'Courier New', Courier, monospace; }
+        
+        #canvas-container { 
+            width: 100vw; height: 100vh; display: block; 
+            filter: blur(1.0px) contrast(1.2) brightness(1.1);
+        }
+
+        /* UI ELEMENTS */
+        #overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            display: flex; justify-content: center; align-items: center;
+            color: #fff; letter-spacing: 5px; cursor: pointer;
+            z-index: 20; transition: opacity 3s ease-out;
+            font-size: 14px; text-transform: uppercase;
+        }
+
+        .eyelid {
+            position: absolute; left: 0; width: 100%; height: 50%;
+            background: #000; z-index: 15; pointer-events: none;
+        }
+        #eyelid-top { top: 0; }
+        #eyelid-bottom { bottom: 0; }
+
+        #timer {
+            position: absolute; bottom: 30px; right: 30px;
+            color: rgba(255,255,255,0.2); font-size: 14px; font-weight: bold;
+            pointer-events: none; z-index: 10;
+        }
+
+        #title-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            pointer-events: none; z-index: 14;
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+        }
+        
+        #main-title {
+            font-family: 'Times New Roman', Times, serif;
+            font-weight: 900;
+            font-size: 8vw; 
+            text-align: center;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            background: linear-gradient(45deg, #999 5%, #fff 10%, #ccc 30%, #ddd 50%, #333 100%);
+            background-size: 200% auto;
+            color: #000;
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shine 3s linear infinite;
+            text-shadow: 0 0 30px rgba(255,255,255,0.5);
+        }
+
+        @keyframes shine {
+            to { background-position: 200% center; }
+        }
+
+        /* --- MEMORY ASSETS --- */
+        .memory-asset {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0; 
+            z-index: 5; 
+            pointer-events: none;
+            mix-blend-mode: screen; 
+            transition: opacity 1.5s ease-in-out; /* Slower transition for elegance */
+        }
+
+        /* SPECIAL STYLING FOR PHOT1 (Center Flash with Soft Edges) */
+        #phot1 {
+            width: 50vw;
+            height: auto;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 10px;
+            -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 100%);
+            mask-image: radial-gradient(circle, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 100%);
+            mix-blend-mode: normal; 
+            object-fit: contain;
+            transition: opacity 1.5s ease-in-out;
+        }
+
+        /* --- LYRIC SYSTEM --- */
+        .lyric-slot {
+            position: absolute;
+            top: 35%; 
+            font-family: 'Times New Roman', Times, serif; 
+            font-style: italic;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+            pointer-events: none; 
+            z-index: 12;
+            white-space: normal;
+            opacity: 0; 
+            transform: translateY(20px);
+            transition: opacity 1.5s ease-in-out, transform 1.5s ease-out;
+        }
+
+        .lyric-slot.fast-trans { transition: opacity 0.2s ease-in-out, transform 0.2s ease-out; }
+        .lyric-slot.active { opacity: 1; transform: translateY(0px); }
+
+        #l-left { left: 5%; width: 42vw; text-align: left; font-size: 40px; }
+        #l-right { right: 5%; width: 42vw; text-align: right; font-size: 40px; }
+        #l-center, #l-center-alt { left: 50%; width: 90vw; transform: translateX(-50%) translateY(20px); text-align: center; font-size: 60px; }
+        #l-center.active, #l-center-alt.active { transform: translateX(-50%) translateY(0px); }
+
+        #l-stack {
+            position: absolute; top: 15%; left: 50%; transform: translateX(-50%); width: 80vw;
+            display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; row-gap: 10px; 
+            z-index: 13; pointer-events: none; transition: opacity 0.5s ease-out;
+        }
+
+        .stack-word {
+            font-family: 'Times New Roman', Times, serif; font-style: italic; font-weight: bold; font-size: 50px;
+            color: rgba(255, 255, 255, 0.95); text-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+            opacity: 0; transform: translateY(10px); transition: opacity 0.1s ease-out, transform 0.1s ease-out; 
+        }
+        .stack-word.visible { opacity: 1; transform: translateY(0px); }
+
+        #interact-prompt {
+            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
+            color: #fff; font-size: 14px; letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255, 200, 100, 0.8);
+            display: none; pointer-events: none; z-index: 10;
+        }
+
+        #note-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center;
+            z-index: 30; opacity: 0; transition: opacity 1s;
+        }
+        
+        #note-paper {
+            background: #fdfbf7; width: 400px; padding: 40px; color: #222; 
+            font-family: 'Times New Roman', Times, serif; box-shadow: 0 0 50px rgba(255, 150, 50, 0.2);
+            transform: translateY(20px); transition: transform 1s;
+            max-height: 50vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #ffaa00 #fdfbf7;
+        }
+        
+        #note-paper::-webkit-scrollbar { width: 8px; }
+        #note-paper::-webkit-scrollbar-track { background: #fdfbf7; }
+        #note-paper::-webkit-scrollbar-thumb { background: #ffaa00; border-radius: 4px; }
+
+        #note-text { font-size: 18px; line-height: 1.6; font-style: italic; }
+        #note-signature { margin-top: 30px; text-align: right; font-weight: bold; }
+
+        #loader {
+            position: absolute; bottom: 0; left: 0; height: 2px; background: #fff; width: 0%; 
+            transition: width 0.1s; z-index: 25;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loader"></div>
+    <div id="overlay">Click to wake up</div>
+    
+    <div id="title-screen">
+        <div id="main-title">DUNIA<br>MENDENGARKAN</div>
+    </div>
+    
+    <img id="phot1" class="memory-asset" src="phot1.jpeg" alt="Memory 1">
+    <img id="phot2" class="memory-asset" src="phot2.jpeg" alt="Memory 2">
+    <img id="phot3" class="memory-asset" src="phot3.jpeg" alt="Memory 3">
+    <img id="phot4" class="memory-asset" src="phot4.jpeg" alt="Memory 4">
+    <img id="phot5" class="memory-asset" src="phot5.jpeg" alt="Memory 5">
+    <img id="phot6" class="memory-asset" src="phot6.jpeg" alt="Memory 6">
+    <img id="phot7" class="memory-asset" src="phot7.jpeg" alt="Memory 7">
+    <img id="phot8" class="memory-asset" src="phot8.jpeg" alt="Memory 8">
+    <img id="phot9" class="memory-asset" src="phot9.jpeg" alt="Memory 9">
+    <img id="phot10" class="memory-asset" src="phot10.jpeg" alt="Memory 10">
+    <img id="phot15" class="memory-asset" src="phot15.jpeg" alt="Memory 15">
+    <img id="phot16" class="memory-asset" src="phot16.jpeg" alt="Memory 16">
+    <img id="phot18" class="memory-asset" src="phot18.jpeg" alt="Memory 18">
+    <img id="phot19" class="memory-asset" src="phot19.jpeg" alt="Memory 19">
+    <img id="phot20" class="memory-asset" src="phot20.jpeg" alt="Memory 20">
+    
+    <video id="video3" class="memory-asset" src="video3.mp4" loop muted playsinline preload="auto"></video>
+    <video id="video2" class="memory-asset" src="video2.mp4" loop muted playsinline preload="auto"></video>
+    <video id="video4" class="memory-asset" src="video4.mp4" loop muted playsinline preload="auto"></video>
+    <video id="video1" class="memory-asset" src="video1.mp4" loop muted playsinline preload="auto"></video>
+    <video id="video5" class="memory-asset" src="video5.mp4" loop muted playsinline preload="auto"></video>
+
+    <div id="eyelid-top" class="eyelid"></div>
+    <div id="eyelid-bottom" class="eyelid"></div>
+
+    <div id="canvas-container"></div>
+    
+    <div id="l-left" class="lyric-slot"></div>
+    <div id="l-right" class="lyric-slot"></div>
+    <div id="l-center" class="lyric-slot"></div>
+    <div id="l-center-alt" class="lyric-slot"></div>
+    <div id="l-stack"></div>
+
+    <div id="interact-prompt">[ PRESS E TO READ ]</div>
+    
+    <div id="note-container">
+        <div id="note-paper">
+            <div id="note-text">
+                I knew you would make it. The storm was never meant to last forever. Only the walk mattered. Rest now. I am so proud of you. If no one has told you this yet, you are the kindest, most loving, and prettiest human being to ever walk this earth. There is no one on this earth that matters to me more than you. You are awesome. I love you so much baby. Infinite cheek lubs for you.
+            </div>
+            <div id="note-signature">- Jeki</div>
+        </div>
+    </div>
+
+    <div id="timer">00:00</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        const CONFIG = {
+            audioSource: "aboutyou.mp3", 
+            totalDistance: 1300, 
+            arrivalTime: 285,    // 4:45
+            fogDensity: 0.015,   
+            snowCount: 40000, 
+            destinationZ: -1300,
+            lightRevealTime: 247, // 4:07
+            interactionTime: 285 
+        };
+
+        const t = (m, s) => m * 60 + s;
+        
+        // STANDARD MEMORY CONFIGURATION
+        const MEMORIES = [
+            { id: 'phot2', start: 60, end: 62, fade: 1.0, opacity: 0.3 },
+            { id: 'phot8', start: 62, end: 67, fade: 1.0, opacity: 0.3 },
+            { id: 'phot5', start: 78, end: 83, fade: 1.0, opacity: 0.3 },
+            { id: 'phot6', start: 99, end: 103, fade: 1.0, opacity: 0.3 },
+            { id: 'phot9', start: 108, end: 114, fade: 1.0, opacity: 0.3 },
+            { id: 'phot1', start: 119, end: 122, fade: 1.0, opacity: 1.0 },
+            { id: 'phot10', start: 134, end: 137, fade: 1.0, opacity: 0.3 },
+            { id: 'phot3', start: 139, end: 143, fade: 1.0, opacity: 0.3 },
+            { id: 'phot4', start: 159, end: 162, fade: 1.0, opacity: 0.3 },
+            { id: 'phot7', start: 179, end: 183, fade: 1.0, opacity: 0.3 },
+            
+            // SEAMLESS VIDEO SEQUENCE
+            { id: 'video2', start: 184, end: 187, fade: 0.1, opacity: 0.6 },
+            { id: 'video3', start: 187, end: 190, fade: 0.1, opacity: 0.6 },
+            { id: 'video4', start: 190, end: 194, fade: 0.1, opacity: 0.6 },
+            { id: 'video1', start: 194.5, end: 198, fade: 1.0, opacity: 0.8 },
+            { id: 'video5', start: 199, end: 202, fade: 1.0, opacity: 0.6 }
+        ];
+
+        // CHAOS MODE ASSETS (Expanded List)
+        const CHAOS_ASSETS = [
+            'phot1', 'phot2', 'phot3', 'phot4', 'phot5', 'phot6', 'phot7',
+            'phot8', 'phot9', 'phot10', 'phot15', 'phot16', 'phot18', 'phot19', 'phot20',
+            'video1', 'video2', 'video3', 'video4', 'video5'
+        ];
+
+        const LYRICS = [
+            { start: t(0,43), end: t(0,46), pos: 'left', text: "I" },
+            { start: t(0,49), end: t(0,52), pos: 'right', text: "KNOW A PLACE" },
+            { start: t(0,55), end: t(0,56), pos: 'left', text: "SOMEWHERE I GO" },
+            { start: t(0,56), end: t(0,59), pos: 'right', text: "WHEN I NEED TO REMEMBER" },
+            { start: t(1,0), end: t(1,2), pos: 'center', text: "YOUR FACE" },
+            { start: t(1,2), end: t(1,7), pos: 'left', text: "WE GET MARRIED" },
+            { start: t(1,9), end: t(1,12), pos: 'right', text: "IN OUR HEADS" },
+            { start: t(1,14), end: t(1,16), pos: 'left', text: "SOMETHING TO DO" },
+            { start: t(1,16), end: t(1,18), pos: 'right', text: "WHILE I TRY TO RECALL" },
+            { start: t(1,18), end: t(1,23), pos: 'center', text: "HOW WE MET" },
+            { start: t(1,24), end: t(1,28), pos: 'left', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(1,28), end: t(1,34), pos: 'right', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(1,34), end: t(1,38), pos: 'left', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(1,39), end: t(1,43), pos: 'center', text: "ABOUT YOU?" },
+            { start: t(1,43), end: t(1,47), pos: 'right', text: "YOU AND I" },
+            { start: t(1,48), end: t(1,54), pos: 'left', text: "WE’RE ALIVE" },
+            { start: t(1,54), end: t(1,56), pos: 'right', text: "WITH NOTHING TO DO" },
+            { start: t(1,56), end: t(1,59), pos: 'left', text: "I COULD LAY AND JUST LOOK AT" },
+            { start: t(1,59), end: t(2,2), pos: 'center', text: "YOUR EYES" },
+            { start: t(2,4), end: t(2,8), pos: 'left', text: "WAIT" },
+            { start: t(2,8), end: t(2,12), pos: 'right', text: "AND PRETEND" },
+            { start: t(2,14), end: t(2,17), pos: 'left', text: "HOLD ON AND HOPE THAT" },
+            { start: t(2,17), end: t(2,19), pos: 'right', text: "WE’LL FIND OUR WAY BACK" },
+            { start: t(2,19), end: t(2,23), pos: 'center', text: "IN THE END" },
+            { start: t(2,23), end: t(2,28), pos: 'left', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(2,28), end: t(2,32), pos: 'right', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(2,32), end: t(2,39), pos: 'left', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(2,39), end: t(2,42), pos: 'center', text: "ABOUT YOU?" },
+            { start: t(2,44), end: t(2,48), pos: 'right', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(2,48), end: t(2,53), pos: 'left', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(2,54), end: t(2,58), pos: 'right', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(2,59), end: t(3,3), pos: 'center', text: "ABOUT YOU?" },
+            
+            // Stack
+            { start: t(3,4), end: t(3,14), pos: 'stack', text: "THERE’S" },
+            { start: t(3,5), end: t(3,14), pos: 'stack', text: "SOMETHING" },
+            { start: t(3,5.5), end: t(3,14), pos: 'stack', text: "ABOUT" },
+            { start: t(3,6), end: t(3,14), pos: 'stack', text: "YOU" },
+            { start: t(3,7), end: t(3,14), pos: 'stack', text: "THAT" },
+            { start: t(3,7.5), end: t(3,14), pos: 'stack', text: "NOW" },
+            { start: t(3,8), end: t(3,14), pos: 'stack', text: "I" },
+            { start: t(3,8.5), end: t(3,14), pos: 'stack', text: "CAN’T" },
+            { start: t(3,8.7), end: t(3,14), pos: 'stack', text: "REMEMBER" },
+            { start: t(3,9), end: t(3,14), pos: 'stack', text: "IT’S" },
+            { start: t(3,9.5), end: t(3,14), pos: 'stack', text: "THE" },
+            { start: t(3,10), end: t(3,14), pos: 'stack', text: "SAME" },
+            { start: t(3,10.5), end: t(3,14), pos: 'stack', text: "DAMN" },
+            { start: t(3,11), end: t(3,14), pos: 'stack', text: "THING" },
+            { start: t(3,11.5), end: t(3,14), pos: 'stack', text: "THAT" },
+            { start: t(3,11.7), end: t(3,14), pos: 'stack', text: "MADE" },
+            { start: t(3,12), end: t(3,14), pos: 'stack', text: "MY" },
+            { start: t(3,12.5), end: t(3,14), pos: 'stack', text: "HEART" },
+            { start: t(3,12.7), end: t(3,14), pos: 'stack', text: "SURRENDER" },
+            
+            // Outro
+            { start: t(3,14.5), end: t(3,16), pos: 'center', text: "I MISS YOU ON THE TRAIN" },
+            { start: t(3,16), end: t(3,19), pos: 'center-alt', text: "I MISS YOU IN THE MORNING" },
+            { start: t(3,19), end: t(3,22), pos: 'left', text: "I NEVER KNOW" },
+            { start: t(3,22), end: t(3,23), pos: 'right', text: "WHAT TO THINK ABOUT" },
+            { start: t(3,23), end: t(3,27), pos: 'center', text: "I THINK ABOUT YOU" },
+            { start: t(3,28), end: t(3,31), pos: 'center-alt', text: "ABOUT YOU" },
+            { start: t(3,34), end: t(3,38), pos: 'center', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(3,39), end: t(3,41), pos: 'center-alt', text: "ABOUT YOU?" },
+            { start: t(3,44), end: t(3,47), pos: 'center', text: "ABOUT YOU" },
+            { start: t(3,49), end: t(3,52), pos: 'center-alt', text: "ABOUT YOU" },
+            { start: t(3,53), end: t(3,58), pos: 'center', text: "DO YOU THINK I HAVE FORGOTTEN" },
+            { start: t(3,59), end: t(4,6), pos: 'center-alt', text: "ABOUT YOU?" }
+        ];
+
+        // State
+        let isWakingUp = false;
+        let hasWoken = false;
+        let isWalking = false; 
+        let isReading = false;
+        let nextBlinkTime = 0;
+        let isBlinking = false;
+        let renderedStackIndices = new Set();
+        let chaosSeed = 0; 
+        let hasFinalBlinked = false;
+        
+        const masterAudio = new Audio(CONFIG.audioSource);
+        masterAudio.loop = false;
+        masterAudio.addEventListener('canplaythrough', () => {
+            document.getElementById('loader').style.width = '100%';
+            setTimeout(() => { document.getElementById('loader').style.opacity = 0; }, 500);
+        });
+        masterAudio.addEventListener('timeupdate', updateTimer);
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, CONFIG.fogDensity); 
+        scene.background = new THREE.Color(0x000000);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.5, 3000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        function createSmokeTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+            gradient.addColorStop(0.5, 'rgba(200, 200, 200, 0.1)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 128, 128);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255, 200, 100, 1)');
+            gradient.addColorStop(0.4, 'rgba(255, 150, 50, 0.4)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const planeGeo = new THREE.PlaneGeometry(3000, 4000, 200, 400); 
+        const positionAttribute = planeGeo.attributes.position;
+        for ( let i = 0; i < positionAttribute.count; i ++ ) {
+            const x = positionAttribute.getX(i);
+            const y = positionAttribute.getY(i); 
+            const height = (Math.sin(x * 0.05) * 2.5) + (Math.cos(y * 0.05) * 2.5) + (Math.random() * 0.3);
+            positionAttribute.setZ(i, height); 
+        }
+        planeGeo.computeVertexNormals();
+        
+        const planeMat = new THREE.MeshStandardMaterial({ 
+            color: 0x555555, 
+            roughness: 0.9, 
+            metalness: 0.1, 
+            flatShading: false 
+        });
+        const ground = new THREE.Mesh(planeGeo, planeMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -3.5;
+        ground.position.z = -1500; 
+        scene.add(ground);
+
+        const lanternGroup = new THREE.Group();
+        lanternGroup.position.set(0, -3.5, CONFIG.destinationZ); 
+        scene.add(lanternGroup);
+
+        const poleGeo = new THREE.CylinderGeometry(0.05, 0.05, 5, 8);
+        const poleMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+        const pole = new THREE.Mesh(poleGeo, poleMat);
+        pole.position.y = 2.5; 
+        lanternGroup.add(pole);
+
+        const boxGeo = new THREE.BoxGeometry(0.6, 0.8, 0.6);
+        const boxMat = new THREE.MeshStandardMaterial({ 
+            color: 0xffaa00, emissive: 0xffaa00, emissiveIntensity: 2.0 
+        });
+        const lightBox = new THREE.Mesh(boxGeo, boxMat);
+        lightBox.position.y = 5.0; 
+        lanternGroup.add(lightBox);
+
+        const lanternLight = new THREE.PointLight(0xffaa00, 0, 3000); 
+        lanternLight.position.y = 5.0; 
+        lanternGroup.add(lanternLight);
+
+        const spriteMat = new THREE.SpriteMaterial({ 
+            map: createGlowTexture(), 
+            color: 0xffaa00, 
+            transparent: true, 
+            opacity: 0.0, 
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const haloSprite = new THREE.Sprite(spriteMat);
+        haloSprite.scale.set(15, 15, 1); 
+        haloSprite.position.y = 5.0; 
+        lanternGroup.add(haloSprite);
+
+        scene.add(new THREE.AmbientLight(0x404040, 1.0)); 
+        
+        const dl = new THREE.DirectionalLight(0x444455, 0.2);
+        dl.position.set(0, 50, -20);
+        scene.add(dl);
+        
+        const cameraLight = new THREE.PointLight(0xffffee, 2.0, 500); 
+        cameraLight.decay = 2; 
+        camera.add(cameraLight);
+        scene.add(camera);
+
+        const snowGeo = new THREE.BufferGeometry();
+        const snowPos = [];
+        const snowRange = 80;
+        const snowVelX = new Float32Array(CONFIG.snowCount);
+        const snowVelZ = new Float32Array(CONFIG.snowCount);
+
+        for(let i=0; i<CONFIG.snowCount; i++) {
+            snowPos.push(
+                (Math.random() - 0.5) * snowRange,
+                Math.random() * 60, 
+                (Math.random() - 0.5) * snowRange * 2
+            );
+            snowVelX[i] = (Math.random() - 0.5) * 0.1; 
+            snowVelZ[i] = 0.2 + Math.random() * 0.2; 
+        }
+        snowGeo.setAttribute('position', new THREE.Float32BufferAttribute(snowPos, 3));
+        const snowMat = new THREE.PointsMaterial({
+            color: 0xffffff, 
+            size: 0.12, 
+            transparent: true, 
+            opacity: 0.9, 
+            depthWrite: false, 
+            blending: THREE.AdditiveBlending 
+        });
+        const snowSystem = new THREE.Points(snowGeo, snowMat);
+        snowSystem.frustumCulled = false; 
+        scene.add(snowSystem);
+
+        const breathParticles = [];
+        const BREATH_MAX = 60;
+        const breathSmokeTex = createSmokeTexture();
+        const breathGroup = new THREE.Group();
+        camera.add(breathGroup);
+
+        for(let i=0; i<BREATH_MAX; i++) {
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: breathSmokeTex,
+                color: 0xaaaaaa,
+                transparent: true,
+                opacity: 0,
+                depthWrite: false, 
+                blending: THREE.NormalBlending
+            }));
+            sprite.userData = { active: false, life: 0, vx: 0, vy: 0, vz: 0, rotVel: 0 };
+            breathGroup.add(sprite);
+            breathParticles.push(sprite);
+        }
+
+        document.getElementById('overlay').addEventListener('click', function() {
+            masterAudio.play().catch(e => console.log(e));
+            // Force load all videos
+            document.querySelectorAll('video').forEach(v => {
+                v.load();
+                v.play().then(() => v.pause()).catch(e=>console.log(e));
+            });
+            startCinematic();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'l' || e.key === 'L')) {
+                camera.position.z = CONFIG.destinationZ + 15; 
+            }
+            if ((e.key === 'e' || e.key === 'E')) {
+                const dist = Math.abs(camera.position.z - CONFIG.destinationZ);
+                // FIXED: <= 25 allows for variance in stop position
+                if (dist <= 25 && masterAudio.currentTime >= CONFIG.interactionTime) {
+                    showNote();
+                }
+            }
+        });
+
+        function showNote() {
+            if(isReading) return;
+            isReading = true;
+            isWalking = false; 
+            
+            const nc = document.getElementById('note-container');
+            const np = document.getElementById('note-paper');
+            document.getElementById('interact-prompt').style.display = 'none';
+            nc.style.display = 'flex';
+            requestAnimationFrame(() => {
+                nc.style.opacity = 1;
+                np.style.transform = 'translateY(0)';
+            });
+        }
+
+        function startCinematic() {
+            const overlay = document.getElementById('overlay');
+            overlay.style.opacity = 0;
+            setTimeout(() => { overlay.style.display = 'none'; }, 3000);
+            isWakingUp = true;
+            
+            const top = document.getElementById('eyelid-top');
+            const bot = document.getElementById('eyelid-bottom');
+            top.style.transition = "height 1.5s cubic-bezier(0.4, 0, 0.2, 1)";
+            bot.style.transition = "height 1.5s cubic-bezier(0.4, 0, 0.2, 1)";
+            
+            setTimeout(() => { top.style.height = '30%'; bot.style.height = '30%'; }, 500);
+            setTimeout(() => { top.style.height = '50%'; bot.style.height = '50%'; }, 2500);
+            setTimeout(() => { 
+                top.style.height = '0%'; bot.style.height = '0%'; 
+                hasWoken = true;
+                isWalking = true;
+                nextBlinkTime = 5.0; 
+            }, 5000);
+        }
+
+        function triggerBlink() {
+            if (isBlinking || !hasWoken) return;
+            isBlinking = true;
+            const top = document.getElementById('eyelid-top');
+            const bot = document.getElementById('eyelid-bottom');
+            top.style.transition = "height 0.1s ease-in-out";
+            bot.style.transition = "height 0.1s ease-in-out";
+            top.style.height = '100%'; bot.style.height = '100%';
+            setTimeout(() => {
+                top.style.height = '0%'; bot.style.height = '0%';
+                isBlinking = false;
+                nextBlinkTime = masterAudio.currentTime + 3 + Math.random() * 5; 
+            }, 150); 
+        }
+
+        function updateTimer() {
+            if (!hasWoken) return;
+            const cur = masterAudio.currentTime;
+            
+            const titleScreen = document.getElementById('title-screen');
+            if (cur >= 25 && cur <= 42) {
+                titleScreen.style.opacity = 1;
+            } else {
+                titleScreen.style.opacity = 0;
+            }
+
+            // --- CHAOS MODE LOGIC (3:27 to 4:10) ---
+            // Ends abruptly at 250s (4:10)
+            if (cur >= 207 && cur < 250) {
+                // Graceful Fade-in over 5 seconds (207-212)
+                let chaosFadeIn = 1.0;
+                if (cur < 212) {
+                     chaosFadeIn = (cur - 207) / 5.0;
+                }
+
+                const currentChaosSeed = Math.floor(cur / 3.0);
+                if (chaosSeed !== currentChaosSeed) {
+                    chaosSeed = currentChaosSeed;
+                    
+                    // Shuffle logic to limit overlapping
+                    const shuffled = [...CHAOS_ASSETS].sort(() => 0.5 - Math.random());
+                    const activeCount = 2 + Math.floor(Math.random() * 3); // 2 to 4 items
+                    const activeIds = shuffled.slice(0, activeCount);
+
+                    CHAOS_ASSETS.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (activeIds.includes(id)) {
+                            // Dreamy opacity: 0.4 to 0.7
+                            el.style.opacity = (0.4 + Math.random() * 0.3) * chaosFadeIn;
+                            el.style.zIndex = 5 + Math.floor(Math.random() * 5);
+                            if(id.includes('video') && el.paused) el.play();
+                        } else {
+                            el.style.opacity = 0;
+                        }
+                    });
+                }
+            } else {
+                // --- STANDARD MEMORY LOGIC ---
+                
+                // Check for abrupt chaos end
+                if (cur >= 250 && !hasFinalBlinked) {
+                    hasFinalBlinked = true;
+                    triggerBlink();
+                    // Force hide all chaos assets immediately
+                    CHAOS_ASSETS.forEach(id => document.getElementById(id).style.opacity = 0);
+                }
+
+                MEMORIES.forEach(mem => {
+                    const el = document.getElementById(mem.id);
+                    if (cur >= mem.start && cur < (mem.end - mem.fade)) {
+                        el.style.opacity = mem.opacity; 
+                        el.style.zIndex = 10; // Ensure standard memories are on top outside chaos
+                        if(mem.id.includes('video') && el.paused) el.play();
+                    } else {
+                        // Avoid hiding if entering chaos mode soon
+                        if (cur < 207) {
+                            el.style.opacity = 0;
+                            if(mem.id.includes('video') && !el.paused) el.pause();
+                        }
+                    }
+                });
+            }
+
+            const activeStandardLyrics = LYRICS.filter(l => l.pos !== 'stack' && cur >= l.start && cur <= l.end);
+
+            ['left', 'right', 'center', 'center-alt'].forEach(pos => {
+                const slot = document.getElementById(`l-${pos}`);
+                const activeForPos = activeStandardLyrics.find(l => l.pos === pos);
+
+                if (activeForPos) {
+                    if (slot.innerText !== activeForPos.text) slot.innerText = activeForPos.text;
+                    const duration = activeForPos.end - activeForPos.start;
+                    if (duration < 2.0) slot.classList.add('fast-trans'); else slot.classList.remove('fast-trans');
+                    slot.classList.add('active');
+                } else {
+                    slot.classList.remove('active');
+                }
+            });
+
+            const stackContainer = document.getElementById('l-stack');
+            if (cur >= 193) { 
+                 stackContainer.style.opacity = '0';
+            } else {
+                 stackContainer.style.opacity = '1';
+            }
+
+            if (cur > 195) { 
+                 stackContainer.innerHTML = '';
+                 renderedStackIndices.clear();
+            } else {
+                const activeStackLyrics = LYRICS.filter(l => l.pos === 'stack' && cur >= l.start && cur <= l.end);
+                activeStackLyrics.forEach((lyric) => {
+                    const key = lyric.text + lyric.start;
+                    if (!renderedStackIndices.has(key)) {
+                        const div = document.createElement('div');
+                        div.className = 'stack-word';
+                        div.innerText = lyric.text;
+                        stackContainer.appendChild(div);
+                        renderedStackIndices.add(key);
+                        requestAnimationFrame(() => { div.classList.add('visible'); });
+                    }
+                });
+            }
+
+            const dur = masterAudio.duration || 1;
+            const min = Math.floor(cur / 60);
+            const sec = Math.floor(cur % 60).toString().padStart(2, '0');
+            const dMin = Math.floor(dur / 60);
+            const dSec = Math.floor(dur % 60).toString().padStart(2, '0');
+            document.getElementById('timer').innerText = `${min}:${sec} / ${dMin}:${dSec}`;
+        }
+
+        let time = 0;
+        let walkTime = 0; 
+        let breathCycle = 0;
+        let isStopping = false;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+            
+            lanternGroup.rotation.y += 0.005;
+
+            if (hasWoken && masterAudio.currentTime > nextBlinkTime) triggerBlink();
+
+            snowSystem.position.x = camera.position.x;
+            snowSystem.position.z = camera.position.z;
+            const positions = snowGeo.attributes.position.array;
+            
+            for(let i=0; i<CONFIG.snowCount; i++) {
+                positions[i*3] += snowVelX[i] + Math.sin(time + i) * 0.02; 
+                positions[i*3 + 1] -= 0.1; 
+                positions[i*3 + 2] += snowVelZ[i] + Math.cos(time * 0.5 + i) * 0.02; 
+
+                if(positions[i*3 + 2] > 20 || positions[i*3 + 1] < -5) {
+                    positions[i*3 + 2] = -80 - Math.random() * 40; 
+                    positions[i*3 + 1] = 20 + Math.random() * 40; 
+                    positions[i*3] = (Math.random() - 0.5) * snowRange; 
+                }
+            }
+            snowGeo.attributes.position.needsUpdate = true;
+            
+            if(hasWoken && !isReading) {
+                const cur = masterAudio.currentTime;
+                const stopPoint = CONFIG.destinationZ + 15; 
+                let targetZ = (cur / CONFIG.interactionTime) * CONFIG.destinationZ; 
+
+                let currentBobAmplitude = 0.15;
+                let currentSwayAmplitude = 0.1;
+
+                if (targetZ <= stopPoint) {
+                    isStopping = true;
+                    camera.position.z = stopPoint;
+                    
+                    currentBobAmplitude = 0.02; 
+                    currentSwayAmplitude = 0.01;
+                    walkTime = time; 
+                } else {
+                    isStopping = false;
+                    camera.position.z = targetZ;
+                    
+                    const distToStop = Math.abs(targetZ - stopPoint);
+                    if(distToStop < 10) {
+                        const blend = distToStop / 10.0; 
+                        currentBobAmplitude = 0.02 + (0.13 * blend);
+                        currentSwayAmplitude = 0.01 + (0.09 * blend);
+                    }
+                    
+                    walkTime = cur * 3.0; 
+                }
+
+                const fatigue = Math.min(masterAudio.currentTime / 300, 1);
+                const bobY = Math.abs(Math.sin(walkTime * 0.75)) * currentBobAmplitude; 
+                const swayX = Math.cos(walkTime * 0.75) * (currentSwayAmplitude + fatigue * 0.05);
+                
+                let stumble = 0;
+                if (!isStopping && Math.random() > 0.99) stumble = (Math.random() - 0.5) * 0.2; 
+
+                camera.position.y = 1.6 - bobY + stumble; 
+                camera.position.x = swayX;
+                camera.rotation.z = swayX * 0.3 + (stumble * 0.5); 
+                camera.rotation.x = Math.sin(walkTime * 1.5) * 0.02 + stumble; 
+
+                const isExhaling = Math.sin(walkTime * 0.75) < -0.5; 
+                const breathChance = isStopping ? 0.98 : 0.8; 
+                
+                if(isExhaling && Math.random() > breathChance) {
+                    const p = breathParticles.find(p => !p.userData.active);
+                    if(p) {
+                        p.userData.active = true;
+                        p.userData.life = 1.0;
+                        p.position.set(0, -0.2, -0.5); 
+                        
+                        const startScale = 0.05 + Math.random() * 0.05;
+                        p.scale.set(startScale, startScale, 1);
+                        p.rotation = Math.random() * Math.PI * 2;
+                        
+                        p.material.opacity = 0.15 + Math.random() * 0.1;
+                        
+                        p.userData.vx = (Math.random() - 0.5) * 0.005;
+                        p.userData.vy = 0.002 + Math.random() * 0.005; 
+                        p.userData.vz = -0.01 - Math.random() * 0.01;
+                        p.userData.rotVel = (Math.random() - 0.5) * 0.05;
+                    }
+                }
+            }
+
+            breathParticles.forEach(p => {
+                if (p.userData.active) {
+                    p.userData.life -= 0.012; 
+                    p.position.x += p.userData.vx;
+                    p.position.y += p.userData.vy;
+                    p.position.z += p.userData.vz;
+                    p.rotation += p.userData.rotVel;
+                    
+                    const age = 1.0 - p.userData.life;
+                    const scale = p.scale.x + 0.005; 
+                    p.scale.set(scale, scale, 1);
+                    p.material.opacity = p.userData.life * 0.15; 
+
+                    if (p.userData.life <= 0) p.userData.active = false;
+                } else {
+                    p.material.opacity = 0;
+                }
+            });
+
+            if (masterAudio.currentTime >= CONFIG.lightRevealTime) {
+                 const fadeDuration = CONFIG.interactionTime - CONFIG.lightRevealTime;
+                 const progress = Math.min((masterAudio.currentTime - CONFIG.lightRevealTime) / fadeDuration, 1.0);
+                 
+                 lanternLight.intensity = progress * 3; 
+                 haloSprite.material.opacity = progress * 0.8;
+            } else {
+                 lanternLight.intensity = 0;
+                 haloSprite.material.opacity = 0;
+            }
+
+            const dist = Math.abs(camera.position.z - CONFIG.destinationZ);
+            let scale = 15;
+            if (dist > 500) scale = 30 + (dist / 100); 
+            else scale = 15 + lanternLight.intensity * 2;
+            haloSprite.scale.set(scale, scale, 1); 
+
+            const prompt = document.getElementById('interact-prompt');
+            if (dist <= 25 && !isReading && masterAudio.currentTime >= CONFIG.interactionTime) {
+                prompt.style.display = 'block';
+                prompt.style.opacity = Math.sin(time * 5) * 0.5 + 0.5; 
+            } else {
+                prompt.style.display = 'none';
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+</html>
